@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  bot-worker:
+    build: .
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./screenshots:/app/screenshots
+    restart: unless-stopped
