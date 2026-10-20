@@ -3,20 +3,11 @@ import fs from 'fs/promises';
 import path from 'path';
 import { env } from '../config/env';
 
-// axios-retry will otherwise really wait between retries; keep tests fast
-// by mocking axios entirely at the module boundary before importing the client.
-const post = vi.fn();
+const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 
-vi.mock('axios', () => {
-  return {
-    default: {
-      create: () => ({
-        post,
-        interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
-      }),
-    },
-  };
-});
+vi.mock('axios', () => ({
+  default: { create: () => ({ request }) },
+}));
 
 vi.mock('axios-retry', () => ({
   default: Object.assign(vi.fn(), {
@@ -25,11 +16,13 @@ vi.mock('axios-retry', () => ({
   }),
 }));
 
+import { dotNetApiClient } from '../services/DotNetApiClient';
+
 describe('DotNetApiClient', () => {
   const dlqPath = path.resolve(env.DLQ_FILE_PATH);
 
   beforeEach(async () => {
-    post.mockReset();
+    request.mockReset();
     await fs.rm(dlqPath, { force: true });
   });
 
@@ -37,26 +30,32 @@ describe('DotNetApiClient', () => {
     await fs.rm(dlqPath, { force: true });
   });
 
-  it('writes to the Dead Letter Queue file when the .NET API is unreachable', async () => {
-    post.mockRejectedValue(new Error('network down'));
+  it('preserves the callback method, URL and payload when the backend is unreachable', async () => {
+    request.mockRejectedValue(new Error('network down'));
 
-    const { dotNetApiClient } = await import('../services/DotNetApiClient');
-    await dotNetApiClient.updateJobStatus({ jobId: 'job-1', status: 'FAILED' });
+    await dotNetApiClient.updateJobStatus(1, { status: 'Failed' });
 
-    const raw = await fs.readFile(dlqPath, 'utf-8');
-    const entries = JSON.parse(raw);
-
+    const entries = JSON.parse(await fs.readFile(dlqPath, 'utf-8'));
     expect(entries).toHaveLength(1);
-    expect(entries[0].kind).toBe('jobStatus');
-    expect(entries[0].payload.jobId).toBe('job-1');
+    expect(entries[0]).toMatchObject({
+      id: expect.any(String),
+      failedAt: expect.any(String),
+      method: 'PUT',
+      url: '/api/v1/worker/jobs/1/status',
+      payload: { status: 'Failed' },
+    });
   });
 
-  it('does not write to the DLQ when the call succeeds', async () => {
-    post.mockResolvedValue({ status: 200 });
+  it('sends the callback without creating a DLQ file when the backend accepts it', async () => {
+    request.mockResolvedValue({ status: 200 });
 
-    const { dotNetApiClient } = await import('../services/DotNetApiClient');
-    await dotNetApiClient.updateJobStatus({ jobId: 'job-2', status: 'COMPLETED' });
+    await dotNetApiClient.updateJobStatus(2, { status: 'Completed' });
 
-    await expect(fs.access(dlqPath)).rejects.toThrow();
+    expect(request).toHaveBeenCalledWith({
+      method: 'PUT',
+      url: '/api/v1/worker/jobs/2/status',
+      data: { status: 'Completed' },
+    });
+    await expect(fs.access(dlqPath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

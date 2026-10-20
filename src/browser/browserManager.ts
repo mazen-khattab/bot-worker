@@ -59,7 +59,7 @@ class BrowserManager {
     }
 
     this.launching = chromiumExtra.launch({
-      headless: false, //true, 
+      headless: true,
       args: ['--disable-blink-features=AutomationControlled'],
     }) as unknown as Promise<Browser>;
 

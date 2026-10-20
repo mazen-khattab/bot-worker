@@ -7,7 +7,7 @@ import { browserManager } from '../browser/browserManager';
  * regression check: if a Playwright or stealth-plugin upgrade breaks the
  * evasion, this will catch the most obvious symptom.
  *
- * Run explicitly with: npx vitest run src/tests/stealth.smoke.test.ts
+ * Run explicitly with: npm run test:browser
  */
 describe('stealth evasion smoke check', () => {
   it('hides navigator.webdriver', async () => {

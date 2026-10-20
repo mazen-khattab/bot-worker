@@ -7,6 +7,8 @@ import { z } from 'zod';
  * instead of crashing later, mid-job, in a much harder-to-debug place.
  */
 const envSchema = z.object({
+  // Nginx connects locally. Containers override this with 0.0.0.0.
+  HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 

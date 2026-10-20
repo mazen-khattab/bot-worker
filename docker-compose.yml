@@ -1,13 +1,25 @@
-version: '3.8'
-
 services:
   bot-worker:
     build: .
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     env_file:
       - .env
+    environment:
+      HOST: 0.0.0.0
+      NODE_ENV: production
+    init: true
+    shm_size: '1gb'
     volumes:
-      - ./data:/app/data
-      - ./screenshots:/app/screenshots
+      - worker-data:/app/data
+      - worker-screenshots:/app/screenshots
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '7'
+
+volumes:
+  worker-data:
+  worker-screenshots:

@@ -1,6 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
 import axiosRetry from 'axios-retry';
-import https from 'https';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { dlqStorageService } from './DlqStorageService';
@@ -12,9 +11,6 @@ export class DotNetApiClient implements IDotNetApiClient {
   constructor(private readonly dlq = dlqStorageService) {
     this.http = axios.create({
       baseURL: env.DOTNET_API_URL,
-      httpsAgent: new https.Agent({
-        rejectUnauthorized: false
-      }),
       timeout: 5_000,
       headers: {
         'X-Worker-Api-Key': env.DOTNET_API_KEY,

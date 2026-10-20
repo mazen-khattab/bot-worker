@@ -20,7 +20,7 @@ export interface WorkerCookie {
   [key: string]: unknown;
 }
 
-/** Payload the .NET backend sends to POST /api/worker/start */
+/** Payload the .NET backend sends to POST /api/worker/dispatch-messaging */
 export interface StartJobPayload {
   jobId: number;
   userId: string;

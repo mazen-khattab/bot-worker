@@ -1,32 +1,59 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { StartJobPayload } from '../types';
 
+vi.mock('../services/DotNetApiClient', () => ({
+  dotNetApiClient: { logActivity: vi.fn().mockResolvedValue(undefined) },
+}));
+
+import { enqueueJob, getJobStatus, __testables } from '../queue/jobQueue';
+import { dotNetApiClient } from '../services/DotNetApiClient';
+
+const payload: StartJobPayload = {
+  jobId: 1,
+  userId: 'user-1',
+  botId: 2,
+  accountId: 3,
+  cookies: [],
+  leads: [],
+};
+
 describe('Job queue idempotency', () => {
   beforeEach(() => {
-    vi.resetModules();
+    vi.clearAllMocks();
+    __testables.seenJobs.clear();
   });
 
-  it('queues a new jobId and rejects a duplicate submission', async () => {
-    const { enqueueJob } = await import('../queue/jobQueue');
-
-    const payload: StartJobPayload = { jobId: 'abc-123', cookies: [], leads: [] };
+  it('executes a job once when its numeric ID is submitted twice', async () => {
     const executor = vi.fn().mockResolvedValue(undefined);
 
-    const first = enqueueJob(payload, 'corr-1', executor);
-    const second = enqueueJob(payload, 'corr-2', executor);
+    expect(enqueueJob(payload, 'corr-1', executor)).toBe('queued');
+    expect(enqueueJob(payload, 'corr-2', executor)).toBe('duplicate');
 
-    expect(first).toBe('queued');
-    expect(second).toBe('duplicate');
+    await vi.waitFor(() => expect(getJobStatus(1).status).toBe('Completed'));
+    expect(executor).toHaveBeenCalledOnce();
   });
 
-  it('sweeps entries older than the TTL', async () => {
-    const { __testables } = await import('../queue/jobQueue');
+  it('includes the bot ID when reporting an unhandled job failure', async () => {
+    const executor = vi.fn().mockRejectedValue(new Error('browser disconnected'));
+    enqueueJob(payload, 'corr-failed', executor);
 
-    const oldTimestamp = Date.now() - 999 * 60 * 60 * 1000; // way past any reasonable TTL
-    __testables.seenJobs.set('stale-job', oldTimestamp);
+    await vi.waitFor(() => {
+      expect(getJobStatus(1).status).toBe('Failed');
+      expect(dotNetApiClient.logActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correlationId: 'corr-failed',
+          userId: 'user-1',
+          botId: 2,
+          logLevel: 'ERROR',
+          message: 'Unhandled job error: browser disconnected',
+        }),
+      );
+    });
+  });
 
+  it('sweeps entries older than the TTL', () => {
+    __testables.seenJobs.set(99, Date.now() - 999 * 60 * 60 * 1000);
     __testables.sweepExpiredJobIds();
-
-    expect(__testables.seenJobs.has('stale-job')).toBe(false);
+    expect(__testables.seenJobs.has(99)).toBe(false);
   });
 });

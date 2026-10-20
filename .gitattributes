@@ -1,0 +1,3 @@
+# Linux deployment scripts must not be checked out with Windows line endings.
+*.sh text eol=lf
+.nvmrc text eol=lf

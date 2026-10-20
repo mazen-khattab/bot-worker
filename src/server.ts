@@ -12,8 +12,8 @@ async function main() {
   startScreenshotCleanup();
 
   const app = createApp();
-  const server = app.listen(env.PORT, () => {
-    logger.info({ port: env.PORT, env: env.NODE_ENV, url: env.DOTNET_API_URL }, 'bot-worker listening');
+  const server = app.listen(env.PORT, env.HOST, () => {
+    logger.info({ host: env.HOST, port: env.PORT, env: env.NODE_ENV, url: env.DOTNET_API_URL }, 'bot-worker listening');
   });
 
   let shuttingDown = false;

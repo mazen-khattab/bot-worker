@@ -77,6 +77,7 @@ export function enqueueJob(payload: StartJobPayload, correlationId: string, exec
       await dotNetApiClient.logActivity({
         correlationId,
         userId: payload.userId,
+        botId: payload.botId,
         logLevel: 'ERROR',
         message: `Unhandled job error: ${(err as Error).message}`,
         stackTrace: (err as Error).stack,

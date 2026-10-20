@@ -1,30 +1,31 @@
-# ---- Build stage ----
-FROM mcr.microsoft.com/playwright:v1.47.0-jammy AS build
+# Install the browser from the project's locked Playwright package so their
+# versions stay compatible when dependencies are updated.
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-# ---- Runtime stage ----
-# Official Playwright image already includes Chromium + all OS-level
-# dependencies, so we don't have to install/debug them ourselves.
-FROM mcr.microsoft.com/playwright:v1.47.0-jammy AS runtime
+FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev \
+    && npx playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/data /app/screenshots \
+    && chown -R node:node /app /ms-playwright
 
-COPY --from=build /app/dist ./dist
+COPY --from=build --chown=node:node /app/dist ./dist
 
-# Persist these across container restarts via bind mounts / volumes in your
-# docker-compose / orchestrator config.
-RUN mkdir -p /app/data /app/screenshots
-
+USER node
 EXPOSE 3000
 CMD ["node", "dist/server.js"]

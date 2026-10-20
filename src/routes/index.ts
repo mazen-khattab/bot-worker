@@ -63,7 +63,7 @@ router.get('/health', async (_req, res) => {
 });
 
 /**
- * POST /api/worker/start
+ * POST /api/worker/dispatch-messaging
  * Validates the payload, de-duplicates by jobId, enqueues the job for
  * background execution (respecting MAX_CONCURRENT_SESSIONS), and returns
  * immediately — mirroring a fire-and-forget Task.Run in C#.

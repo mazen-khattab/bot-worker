@@ -2,6 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'bot-worker',
+      cwd: __dirname,
       script: 'dist/server.js',
       instances: 1, // Keep at 1: a singleton Playwright browser per process is the design assumption.
       exec_mode: 'fork',

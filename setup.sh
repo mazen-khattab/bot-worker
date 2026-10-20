@@ -1,71 +1,55 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eo pipefail
 
-# Exit immediately if any command fails
-set -e
+# Resolve paths relative to this script, even when called from another directory.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
-echo "=== [1/7] Updating OS Package Lists ==="
-sudo apt-get update
-
-echo "=== [2/7] Configuring Node.js Environment via NVM ==="
-export NVM_DIR="$HOME/.nvm"
-if [ -s "$NVM_DIR/nvm.sh" ]; then
-    # Load NVM
-    \. "$NVM_DIR/nvm.sh"
-    echo "Using NVM... Installing & selecting version from .nvmrc"
-    nvm install
-    nvm use
-elif command -v node &> /dev/null; then
-    echo "NVM not found. Continuing with system Node version: $(node -v)"
-else
-    echo "❌ Error: Neither NVM nor Node.js is installed on this system."
-    echo "Please install NVM (https://github.com/nvm-sh/nvm) or Node.js v22+ first."
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Run this script as the deploy user, not root: su - deploy"
     exit 1
 fi
 
-echo "=== [3/7] Validating Environment File (.env) ==="
-if [ ! -f .env ]; then
-    if [ -f .env.example ]; then
-        echo "⚠️ .env file not found. Creating from .env.example..."
-        cp .env.example .env
-        echo "⚠️ ACTION REQUIRED: Update .env with real credentials before running the bot!"
-    else
-        echo "⚠️ Warning: No .env or .env.example found. The bot will fail if env vars are missing."
-    fi
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    source "$HOME/.nvm/nvm.sh"
+    nvm install
+    nvm use
+elif ! command -v node >/dev/null 2>&1; then
+    echo "Install Node.js 22 first. See docs/DEPLOYMENT.md."
+    exit 1
 fi
 
-echo "=== [4/7] Installing Project Dependencies ==="
-npm ci
+node -e 'if (Number(process.versions.node.split(".")[0]) < 22) { console.error("Node.js 22 or newer is required."); process.exit(1); }'
 
-echo "=== [5/7] Installing Playwright Chromium & OS Dependencies ==="
-# Installs Chromium binary and system libraries (libgbm, libnss3, etc.)
+if [ ! -f .env ]; then
+    (umask 077; cp .env.example .env)
+    echo "Created .env. Set WORKER_API_KEY and DOTNET_API_KEY with nano .env, then run bash setup.sh again."
+    exit 1
+fi
+chmod 600 .env
+
+echo "Installing project packages..."
+npm ci --include=dev
+
+echo "Installing Chromium and its Linux dependencies (sudo may request your password)..."
 npx playwright install --with-deps chromium
 
-echo "=== [6/7] Compiling TypeScript Project ==="
+echo "Building the worker..."
 npm run build
 
-echo "=== [7/7] Configuring PM2 & Runtime Directories ==="
-if ! command -v pm2 &> /dev/null; then
-    echo "Installing PM2 globally..."
-    # Do NOT use sudo if NVM is active
-    if [ -n "$NVM_BIN" ]; then
+echo "Checking environment settings..."
+node -e "require('./dist/config/env')"
+
+mkdir -p data screenshots
+
+if ! command -v pm2 >/dev/null 2>&1; then
+    echo "Installing PM2..."
+    if [ -n "${NVM_BIN:-}" ]; then
         npm install -g pm2
     else
         sudo npm install -g pm2
     fi
 fi
 
-# Ensure storage directories exist
-mkdir -p screenshots
-mkdir -p data
-
-echo "===================================================="
-echo " ✅ Setup Completed Successfully!"
-echo "===================================================="
-echo "Next steps for production:"
-echo " 1. Verify your .env file: nano .env"
-echo " 2. Start the worker:     npm run start:pm2"
-echo " 3. Enable auto-restart on server reboot:"
-echo "    pm2 startup"
-echo "    (run the sudo command that pm2 outputs, then:)"
-echo "    pm2 save"
-echo "===================================================="
+echo "Setup finished. Start the worker with: pm2 start ecosystem.config.js"
+echo "Enable reboot recovery: pm2 startup (run its printed command), then pm2 save."
+echo "Configure Nginx and HTTPS using docs/DEPLOYMENT.md before connecting the backend."

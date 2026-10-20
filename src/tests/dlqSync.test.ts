@@ -23,14 +23,14 @@ describe('dlqSync', () => {
 
   it('removes entries that resend successfully and keeps the ones that still fail', async () => {
     const entries = [
-      { kind: 'jobStatus', payload: { jobId: 'ok-1', status: 'COMPLETED' }, failedAt: 'x' },
-      { kind: 'jobStatus', payload: { jobId: 'still-fails', status: 'FAILED' }, failedAt: 'x' },
+      { id: 'ok-1', method: 'PUT', url: '/api/v1/worker/jobs/1/status', payload: { status: 'Completed' }, failedAt: '2026-10-20T00:00:00.000Z' },
+      { id: 'still-fails', method: 'PUT', url: '/api/v1/worker/jobs/2/status', payload: { status: 'Failed' }, failedAt: '2026-10-20T00:00:00.000Z' },
     ];
     await fs.writeFile(dlqPath, JSON.stringify(entries), 'utf-8');
 
     const { dotNetApiClient } = await import('../services/DotNetApiClient');
     (dotNetApiClient.trySendRaw as ReturnType<typeof vi.fn>).mockImplementation(
-      async (entry: (typeof entries)[number]) => entry.payload.jobId === 'ok-1',
+      async (entry: (typeof entries)[number]) => entry.id === 'ok-1',
     );
 
     const { __testables } = await import('../services/dlqSync');
@@ -38,6 +38,6 @@ describe('dlqSync', () => {
 
     const remaining = JSON.parse(await fs.readFile(dlqPath, 'utf-8'));
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].payload.jobId).toBe('still-fails');
+    expect(remaining[0].id).toBe('still-fails');
   });
 });
