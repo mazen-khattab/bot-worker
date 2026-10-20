@@ -99,7 +99,7 @@ class BrowserManager {
           const s = c.sameSite.toLowerCase();
           if (s === 'strict') sameSite = 'Strict';
           else if (s === 'lax') sameSite = 'Lax';
-          else if (s === 'none' || s === 'no_restriction') sameSite = 'None';
+          else if (s === 'none' || s === 'no_restriction' || s === 'unspecified') sameSite = 'None';
         }
         return {
           name: c.name,

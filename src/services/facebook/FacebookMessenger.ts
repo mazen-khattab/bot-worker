@@ -55,21 +55,21 @@ export class FacebookMessenger {
     return false;
   }
 
-  async sendMessageTo(profileUrl: string, profileName: string, messageText: string): Promise<void> {
+  async sendMessageTo(profileUrl: string, profileName: string, messageText: string, botId: number): Promise<void> {
     logger.debug({ profileUrl, profileName }, 'FacebookMessenger.sendMessageTo() called');
     logger.info({ profileUrl, profileName }, `Sending message to ${profileName} at ${profileUrl}`);
     
-    await this.navigateToProfile(profileUrl);
+    await this.navigateToProfile(profileUrl, botId);
     await this.humanInteraction();
-    const chatbox = await this.openVerifiedChatbox(profileName);
-    await this.typeMessageHumanLike(chatbox, messageText);
+    const chatbox = await this.openVerifiedChatbox(profileName, botId);
+    await this.typeMessageHumanLike(chatbox, messageText, botId);
     await this.submitMessage();
-    await this.closeChatWindow();
+    await this.closeChatWindow(botId);
   }
 
-  private async navigateToProfile(profileUrl: string): Promise<void> {
+  private async navigateToProfile(profileUrl: string, botId: number): Promise<void> {
     logger.debug({ profileUrl }, 'FacebookMessenger.navigateToProfile() called');
-    await this.reporter.report(this.userId, 'INFO', `Navigating to profile: ${profileUrl}`);
+    await this.reporter.report(this.userId, botId, 'INFO', `Navigating to profile: ${profileUrl}`);
     await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
   }
 
@@ -84,7 +84,7 @@ export class FacebookMessenger {
     );
   }
 
-  private async openVerifiedChatbox(profileName: string): Promise<Locator> {
+  private async openVerifiedChatbox(profileName: string, botId: number): Promise<Locator> {
     logger.debug({ profileName }, 'FacebookMessenger.openVerifiedChatbox() called');
     const messageButton = this.page.locator(facebookSelectors.messageButton).first();
     await messageButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -92,17 +92,17 @@ export class FacebookMessenger {
     let clickAttempts = 0;
     while (clickAttempts < 4) {
       clickAttempts++;
-      await this.clickWithEscalatingForce(messageButton, clickAttempts);
+      await this.clickWithEscalatingForce(messageButton, clickAttempts, botId);
       await sleep(randomDelayMs(3000, 4000));
 
       const chatbox = await this.findChatboxForProfile(profileName);
       if (chatbox) {
         logger.info({ profileName }, `${profileName}'s messenger box has opened successfully`);
-        await this.reporter.report(this.userId, 'INFO', `${profileName}'s messenger box has opened successfully`);
+        await this.reporter.report(this.userId, botId, 'INFO', `${profileName}'s messenger box has opened successfully`);
         return chatbox;
       } else {
         logger.warn({ profileName }, 'Detected a hanging chatbox from a previous profile or wrong user. Cleaning up...');
-        await this.reporter.report(this.userId, 'WARN', 'Detected a hanging chatbox from a previous profile or wrong user. Cleaning up...');
+        await this.reporter.report(this.userId, botId, 'WARN', 'Detected a hanging chatbox from a previous profile or wrong user. Cleaning up...');
         const closeButton = this.page.locator(facebookSelectors.chatCloseButton).first();
         if (await closeButton.isVisible()) {
           await closeButton.click();
@@ -115,9 +115,9 @@ export class FacebookMessenger {
     throw new ChatboxIdentityMismatchError(`Could not isolate the correct chatbox for "${profileName}".`);
   }
 
-  private async clickWithEscalatingForce(button: Locator, attempt: number): Promise<void> {
+  private async clickWithEscalatingForce(button: Locator, attempt: number, botId: number): Promise<void> {
     logger.debug({ attempt }, 'FacebookMessenger.clickWithEscalatingForce() called');
-    await this.reporter.report(this.userId, 'INFO', `Pressing message button... (Attempt: ${attempt})`);
+    await this.reporter.report(this.userId, botId, 'INFO', `Pressing message button... (Attempt: ${attempt})`);
     if (attempt === 1) {
       await button.click();
     } else if (attempt === 2) {
@@ -148,10 +148,10 @@ export class FacebookMessenger {
     return null;
   }
 
-  private async typeMessageHumanLike(chatbox: Locator, text: string): Promise<void> {
+  private async typeMessageHumanLike(chatbox: Locator, text: string, botId: number): Promise<void> {
     logger.debug('FacebookMessenger.typeMessageHumanLike() called');
     await chatbox.focus();
-    await this.reporter.report(this.userId, 'INFO', 'Writing human-like message...');
+    await this.reporter.report(this.userId, botId, 'INFO', 'Writing human-like message...');
     for (const char of text) {
       await this.page.keyboard.type(char);
       await sleep(randomDelayMs(80, 200));
@@ -164,23 +164,23 @@ export class FacebookMessenger {
     await sleep(randomDelayMs(8000, 10000));
   }
 
-  private async closeChatWindow(): Promise<void> {
+  private async closeChatWindow(botId: number): Promise<void> {
     logger.debug('FacebookMessenger.closeChatWindow() called');
-    await this.reporter.report(this.userId, 'INFO', 'Starting strict cleanup to close the chat window...');
+    await this.reporter.report(this.userId, botId, 'INFO', 'Starting strict cleanup to close the chat window...');
     const closeButton = this.page.locator(facebookSelectors.chatCloseButton).first();
 
     try {
       await closeButton.waitFor({ state: 'visible', timeout: 5000 });
       await closeButton.evaluate((el: HTMLElement) => el.click());
       logger.info('Chat window successfully closed and cleaned from DOM.');
-      await this.reporter.report(this.userId, 'INFO', 'Chat window successfully closed and cleaned from DOM.');
+      await this.reporter.report(this.userId, botId, 'INFO', 'Chat window successfully closed and cleaned from DOM.');
       await sleep(2000);
     } catch {
       logger.warn("Close button didn't appear within 5s. Executing fallback page reload...");
-      await this.reporter.report(this.userId, 'WARN', "Close button didn't appear within 5s. Executing fallback page reload...");
+      await this.reporter.report(this.userId, botId, 'WARN', "Close button didn't appear within 5s. Executing fallback page reload...");
       await this.page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
       logger.info('Page reloaded successfully to clear any hanging chat windows.');
-      await this.reporter.report(this.userId, 'INFO', 'Page reloaded successfully to clear any hanging chat windows.');
+      await this.reporter.report(this.userId, botId, 'INFO', 'Page reloaded successfully to clear any hanging chat windows.');
       await sleep(3000);
     }
   }

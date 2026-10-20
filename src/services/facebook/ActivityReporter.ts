@@ -6,7 +6,7 @@ import type { LogLevel } from '../../types';
 export class ActivityReporter {
   constructor(private readonly correlationId: string) { }
 
-  async report(userId: string, logLevel: LogLevel, message: string, stackTrace?: string): Promise<void> {
+  async report(userId: string, botId: number, logLevel: LogLevel, message: string, stackTrace?: string): Promise<void> {
     const loggerLevel = logLevel.toLowerCase() as Lowercase<LogLevel>;
 
     logger[loggerLevel]({ correlationId: this.correlationId, stackTrace }, message);
@@ -14,6 +14,7 @@ export class ActivityReporter {
     await dotNetApiClient.logActivity({
       correlationId: this.correlationId,
       userId,
+      botId,
       logLevel,
       message,
       stackTrace,

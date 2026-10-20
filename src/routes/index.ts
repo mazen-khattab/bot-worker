@@ -19,7 +19,7 @@ const cookieSchema = z.object({
   expires: z.number().optional(),
   httpOnly: z.boolean().optional(),
   secure: z.boolean().optional(),
-  sameSite: z.enum(['Strict', 'Lax', 'None', 'no_restriction', 'lax', 'strict', 'none']).optional(),
+  sameSite: z.enum(['Strict', 'Lax', 'None', 'no_restriction', 'lax', 'strict', 'none', 'unspecified']).optional(),
 }).passthrough();
 
 const startJobSchema = z.object({

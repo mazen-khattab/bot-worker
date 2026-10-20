@@ -16,7 +16,7 @@ export interface WorkerCookie {
   expires?: number;
   httpOnly?: boolean;
   secure?: boolean;
-  sameSite?: 'Strict' | 'Lax' | 'None' | 'no_restriction' | 'lax' | 'strict' | 'none';
+  sameSite?: 'Strict' | 'Lax' | 'None' | 'no_restriction' | 'lax' | 'strict' | 'none' | 'unspecified';
   [key: string]: unknown;
 }
 
@@ -58,6 +58,7 @@ export interface JobStatusUpdate {
 export interface ActivityLogEntry {
   correlationId: string;
   userId: string;
+  botId: number;
   logLevel: LogLevel;
   message: string;
   stackTrace?: string;

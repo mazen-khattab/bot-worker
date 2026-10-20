@@ -14,9 +14,9 @@ export async function runMessagingJob(payload: StartJobPayload, correlationId: s
 
   logger.info({ jobId: payload.jobId }, "Creating ActivityReporter for jobId: " + payload.jobId);
   const reporter = new ActivityReporter(correlationId);
-  const { jobId, cookies, leads, accountId } = payload;
+  const { jobId, cookies, leads, accountId, botId } = payload;
 
-  await reporter.report(payload.userId, 'INFO', `Starting messaging job ${jobId} with ${leads.length} leads`);
+  await reporter.report(payload.userId, botId, 'INFO', `Starting messaging job ${jobId} with ${leads.length} leads`);
   await dotNetApiClient.updateJobStatus(jobId, { status: 'Processing' });
 
   const context = await browserManager.newContext(cookies);
@@ -44,30 +44,30 @@ export async function runMessagingJob(payload: StartJobPayload, correlationId: s
       logger.info({ jobId: payload.jobId, leadId: lead.id }, `Attempting to send message to lead ${lead.id}`);
       while (attempt < MAX_RETRIES && !success) {
         attempt++;
-        await reporter.report(payload.userId, 'INFO', `[Attempt ${attempt}/${MAX_RETRIES}] Processing lead: ${lead.id}`);
+        await reporter.report(payload.userId, botId, 'INFO', `[Attempt ${attempt}/${MAX_RETRIES}] Processing lead: ${lead.id}`);
 
         try {
           logger.info({ jobId: payload.jobId, leadId: lead.id }, `Sending message to lead ${lead.id} on attempt ${attempt}`);
-          await messenger.sendMessageTo(lead.profileUrl, lead.profileName, lead.aiMessage);
+          await messenger.sendMessageTo(lead.profileUrl, lead.profileName, lead.aiMessage, botId);
 
           logger.info({ jobId: payload.jobId, leadId: lead.id }, `Successfully sent message to lead ${lead.id} on attempt ${attempt}`);
           await dotNetApiClient.updateLeadStatus(lead.id, { status: 'Completed' });
-          await reporter.report(payload.userId, 'INFO', `Successfully sent message to lead ${lead.id}`);
+          await reporter.report(payload.userId, botId, 'INFO', `Successfully sent message to lead ${lead.id}`);
           success = true;
         } catch (err) {
           logger.error({ jobId: payload.jobId, leadId: lead.id, err }, `Error sending message to lead ${lead.id} on attempt ${attempt}`);
           const error = err as Error;
-          await reporter.report(payload.userId, 'ERROR', `Error messaging lead ${lead.id} on attempt ${attempt}: ${error.message}`, error.stack);
+          await reporter.report(payload.userId, botId, 'ERROR', `Error messaging lead ${lead.id} on attempt ${attempt}: ${error.message}`, error.stack);
 
           if (error instanceof ChatboxIdentityMismatchError) {
             logger.error({ jobId: payload.jobId, leadId: lead.id }, 'Chatbox identity mismatch detected. Aborting retries for this lead.');
-            await reporter.report(payload.userId, 'ERROR', `Identity mismatch for lead ${lead.id}, aborting retries for this lead.`);
+            await reporter.report(payload.userId, botId, 'ERROR', `Identity mismatch for lead ${lead.id}, aborting retries for this lead.`);
             break;
           }
 
           if (attempt < MAX_RETRIES) {
             logger.info({ jobId: payload.jobId, leadId: lead.id }, `Waiting 15 seconds before retrying lead ${lead.id}...`);
-            await reporter.report(payload.userId, 'WARN', 'Waiting 15 seconds before retrying...');
+            await reporter.report(payload.userId, botId, 'WARN', 'Waiting 15 seconds before retrying...');
             await sleep(15000);
           }
         }
@@ -79,25 +79,25 @@ export async function runMessagingJob(payload: StartJobPayload, correlationId: s
         const screenshotPath = await saveErrorScreenshot(page, jobId, lead.id);
         const errorMsg = `All attempts failed for lead ${lead.id}.`;
         await dotNetApiClient.updateLeadStatus(lead.id, { status: 'Failed' });
-        await reporter.report(payload.userId, 'ERROR', `${errorMsg}${screenshotPath ? ` (Screenshot: ${screenshotPath})` : ''}`);
+        await reporter.report(payload.userId, botId, 'ERROR', `${errorMsg}${screenshotPath ? ` (Screenshot: ${screenshotPath})` : ''}`);
       }
 
       if (i < leads.length - 1) {
         logger.info({ jobId: payload.jobId, leadId: lead.id }, `Waiting before processing next lead...`);
         const sleepTime = randomDelayMs(45000, 60000);
-        await reporter.report(payload.userId, 'INFO', `Waiting ${(sleepTime / 1000).toFixed(1)}s before next lead...`);
+        await reporter.report(payload.userId, botId, 'INFO', `Waiting ${(sleepTime / 1000).toFixed(1)}s before next lead...`);
         await sleep(sleepTime);
       }
     }
 
     logger.info({ jobId: payload.jobId }, 'All leads processed. Marking job as COMPLETED.');
     await dotNetApiClient.updateJobStatus(jobId, { status: 'Completed' });
-    await reporter.report(payload.userId, 'INFO', 'Messaging job completed successfully');
+    await reporter.report(payload.userId, botId, 'INFO', 'Messaging job completed successfully');
 
   } catch (err) {
     logger.error({ jobId: payload.jobId, err }, 'Unhandled error in runMessagingJob()');
     const error = err as Error;
-    await reporter.report(payload.userId, 'ERROR', `Messaging job failed: ${error.message}`, error.stack);
+    await reporter.report(payload.userId, botId, 'ERROR', `Messaging job failed: ${error.message}`, error.stack);
     await dotNetApiClient.updateJobStatus(jobId, { status: 'Failed' });
   } finally {
     logger.info({ jobId: payload.jobId }, 'Cleaning up resources for runMessagingJob()');
