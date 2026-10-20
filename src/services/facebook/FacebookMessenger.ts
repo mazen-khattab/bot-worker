@@ -3,7 +3,6 @@ import { randomDelayMs, sleep } from '../../utils/humanTiming';
 import { facebookSelectors } from './facebookSelectors';
 import { ActivityReporter } from './ActivityReporter';
 import { logger } from '../../utils/logger';
-import { log } from 'console';
 
 export class ChatboxIdentityMismatchError extends Error {
   constructor(message: string) {
@@ -63,10 +62,9 @@ export class FacebookMessenger {
     await this.navigateToProfile(profileUrl, botId);
     await this.humanInteraction();
     const chatbox = await this.openVerifiedChatbox(profileName, botId);
-    logger.info({profileName, profileUrl}, 'Message successfully created');
-    // await this.typeMessageHumanLike(chatbox, messageText, botId);
-    // await this.submitMessage();
-    // await this.closeChatWindow(botId);
+    await this.typeMessageHumanLike(chatbox, messageText, botId);
+    await this.submitMessage();
+    await this.closeChatWindow(botId);
   }
 
   private async navigateToProfile(profileUrl: string, botId: number): Promise<void> {
